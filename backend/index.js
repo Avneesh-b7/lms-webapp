@@ -7,6 +7,7 @@ import helmet from "helmet";
 import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import logger from "./utils/logger.js";
+import connectDB from "./config/db.js";
 
 dotenv.config();
 
@@ -85,7 +86,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  logger.info(`Server is running on http://localhost:${PORT}`);
-});
+// Connect to MongoDB first, then start the server
+// This ensures no requests are accepted before the DB is ready
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      logger.info(`Server is running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    // Initial connection failed - no point running without a DB
+    logger.error(`Failed to connect to MongoDB: ${err.message}`);
+    process.exit(1);
+  });
