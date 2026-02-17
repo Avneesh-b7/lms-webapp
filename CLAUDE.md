@@ -19,21 +19,26 @@ npm run dev        # Start server (defaults to port 3000)
 ```
 lms-webapp/
 ├── backend/
-│   ├── index.js          # Server entry point - all middleware registered here
+│   ├── index.js           # Server entry point - all middleware registered here
+│   ├── config/
+│   │   ├── db.js          # MongoDB connection, pooling, graceful shutdown
+│   │   └── db.md          # Explanation of db.js architecture
 │   ├── utils/
-│   │   └── logger.js     # Winston logger - import this for all logging
-│   └── logs/             # Auto-created at runtime, gitignored
+│   │   └── logger.js      # Winston logger - import this for all logging
+│   └── logs/              # Auto-created at runtime, gitignored
 │       ├── error.log
 │       └── combined.log
-└── frontend/             # Not yet implemented
+└── frontend/              # Not yet implemented
 ```
 
 ## Environment Variables
 
 ```env
-PORT=3000
+PORT=XXXX
 NODE_ENV=development
-CLIENT_URL=http://localhost:5173
+CLIENT_URL=http://localhost:frontend-port
+MONGO_URI=mongodb+srv://...
+DB_NAME=lms
 ```
 
 ## Architecture
@@ -60,10 +65,10 @@ Winston is the single logger for the entire app. Morgan pipes HTTP logs through 
 ```javascript
 import logger from "./utils/logger.js";
 
-logger.error("something broke");   // → console + error.log + combined.log
-logger.warn("heads up");           // → console + combined.log
-logger.info("user logged in");     // → console + combined.log
-logger.debug("cache miss");        // → console only (suppressed in production)
+logger.error("something broke"); // → console + error.log + combined.log
+logger.warn("heads up"); // → console + combined.log
+logger.info("user logged in"); // → console + combined.log
+logger.debug("cache miss"); // → console only (suppressed in production)
 ```
 
 - **Development**: colored, human-readable `[HH:mm:ss] level: message`
@@ -73,8 +78,19 @@ logger.debug("cache miss");        // → console only (suppressed in production
 
 `express-mongo-sanitize` cannot be used as `app.use(mongoSanitize())` because Express v5 makes `req.query` a read-only getter. Instead, `mongoSanitize.sanitize()` is called manually on `req.body` and `req.params` only.
 
+### Database (config/db.js)
+
+`connectDB()` is called in `index.js` before `app.listen()` — the server never starts if the DB connection fails.
+
+Key behaviours:
+
+- **Pool**: `maxPoolSize: 5`, `minPoolSize: 2`
+- **autoIndex**: disabled in production to prevent collection locks — create indexes via migrations
+- **Graceful shutdown**: listens for `SIGINT` (Ctrl+C) and `SIGTERM` (Docker/K8s/PM2), closes the connection cleanly before exiting
+- **Events**: connected / error / disconnected / reconnected are all logged through Winston
+
 ## Technical Details
 
 - **Module system**: ES modules (`import`/`export`) throughout — no `require()`
 - **Framework**: Express v5.2.1
-- **Database**: Mongoose v9 (not yet connected)
+- **Database**: Mongoose v9 connected via `config/db.js`
