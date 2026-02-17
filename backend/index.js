@@ -3,6 +3,10 @@ import express from "express";
 import morgan from "morgan";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
+import rateLimit from "express-rate-limit";
+import logger from "./utils/logger.js";
 
 dotenv.config();
 
@@ -10,27 +14,48 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-// 1. Logging - should be first to log all requests
-if (process.env.NODE_ENV === "development") {
-  app.use(morgan("dev")); // Colored output for development
-} else {
-  app.use(morgan("combined")); // Apache format for production
-}
-
-// 2. CORS - allow cross-origin requests
+// 1. Pipe Morgan HTTP logs through Winston
 app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173", // Vite default port
-    credentials: true, // Allow cookies
+  morgan(process.env.NODE_ENV === "development" ? "dev" : "combined", {
+    stream: logger.stream,
   }),
 );
 
-// 3. Body parsers
+// 2. Security headers
+app.use(helmet());
+
+// 3. Rate limiting - max 100 requests per 15 minutes per IP
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: "Too many requests, please try again later." },
+  standardHeaders: true, // Return rate limit info in headers
+  legacyHeaders: false,
+});
+app.use(limiter);
+
+// 4. CORS - allow cross-origin requests
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
+  }),
+);
+
+// 5. Body parsers
 app.use(express.json({ limit: "10kb" })); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true, limit: "10kb" })); // Parse URL-encoded bodies
 
-// 4. Cookie parser
+// 6. Cookie parser
 app.use(cookieParser());
+
+// 7. Sanitize request data against NoSQL injection
+// Note: skipping req.query as Express v5 makes it read-only
+app.use((req, res, next) => {
+  if (req.body) req.body = mongoSanitize.sanitize(req.body);
+  if (req.params) req.params = mongoSanitize.sanitize(req.params);
+  next();
+});
 
 // Basic test route
 app.get("/", (req, res) => {
@@ -53,7 +78,7 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error(`${err.status || 500} - ${err.message}`);
   res.status(err.status || 500).json({
     error: "Internal Server Error",
     message: err.message,
@@ -62,5 +87,5 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  logger.info(`Server is running on http://localhost:${PORT}`);
 });
