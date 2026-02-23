@@ -154,14 +154,49 @@ const user = await UserModel.findOne({ email }).select('+password');
 ```
 
 ### toJSON Transform
+
+**What:** Controls how Mongoose documents are converted to JSON (e.g., in API responses).
+
+**Why:** Security - automatically removes sensitive fields before sending to client.
+
+**How It Works:**
 ```javascript
 UserSchema.set('toJSON', {
+  virtuals: true,  // Include virtual fields in JSON output
+
   transform: (doc, ret) => {
-    delete ret.password;  // Remove sensitive fields from API responses
-    return ret;
+    // doc = original Mongoose document (with methods, virtuals)
+    // ret = plain object that will be sent as JSON
+
+    delete ret.password;              // Remove hashed password
+    delete ret.passwordResetToken;    // Remove reset token
+    delete ret.passwordResetExpires;  // Remove expiry
+    delete ret.__v;                   // Remove Mongoose version key
+
+    return ret;  // Client receives this cleaned object
   }
 });
 ```
+
+**Example:**
+```javascript
+// In your controller
+const user = await UserModel.findOne({ email });
+res.json(user);  // toJSON runs automatically
+
+// Client receives (password automatically removed):
+{
+  "_id": "123",
+  "email": "john@example.com",
+  "name": "John Doe",
+  "role": "student"
+  // No password, tokens, or __v ✅
+}
+```
+
+**Why This Matters:**
+- ❌ Without it: Easy to accidentally leak password/tokens in API responses
+- ✅ With it: Set once in schema, safe forever - runs on every `res.json(user)`
 
 ---
 

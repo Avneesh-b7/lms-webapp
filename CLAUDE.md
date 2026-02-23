@@ -23,6 +23,12 @@ lms-webapp/
 │   ├── config/
 │   │   ├── db.js          # MongoDB connection, pooling, graceful shutdown
 │   │   └── db.md          # Explanation of db.js architecture
+│   ├── models/
+│   │   ├── user.model.js         # User model with auth (bcrypt hashing, password reset)
+│   │   ├── courses.model.js      # Course model
+│   │   ├── lecture.model.js      # Lecture model
+│   │   ├── courseProgress.model.js # Progress tracking
+│   │   └── MONGOOSE_GUIDE.md     # Mongoose patterns reference (virtuals, aggregations)
 │   ├── utils/
 │   │   └── logger.js      # Winston logger - import this for all logging
 │   └── logs/              # Auto-created at runtime, gitignored
@@ -89,8 +95,26 @@ Key behaviours:
 - **Graceful shutdown**: listens for `SIGINT` (Ctrl+C) and `SIGTERM` (Docker/K8s/PM2), closes the connection cleanly before exiting
 - **Events**: connected / error / disconnected / reconnected are all logged through Winston
 
+### Models (models/)
+
+All models follow these conventions:
+
+- **Naming**: `UserSchema` for schema, `UserModel` for model
+- **Import**: `import UserModel from "./models/user.model.js"`
+- **Reference guide**: See `models/MONGOOSE_GUIDE.md` for Mongoose patterns (virtuals, aggregations, hooks, toJSON)
+
+**User Model** (`user.model.js`):
+- Email, password (bcrypt hashed via pre-save hook), name, avatar, bio
+- Roles: `student` (default), `instructor`, `admin`
+- `enrolledCourses`: array of Course ObjectIds
+- `isPaid`: boolean for subscription tracking
+- Password methods: `comparePassword()`, `createPasswordResetToken()`
+- Security: `toJSON` transform auto-removes password/tokens from API responses
+- Fields with `select: false`: password, passwordResetToken, passwordResetExpires, isActive
+
 ## Technical Details
 
 - **Module system**: ES modules (`import`/`export`) throughout — no `require()`
 - **Framework**: Express v5.2.1
 - **Database**: Mongoose v9 connected via `config/db.js`
+- **Authentication**: bcryptjs for password hashing (cost factor: 12)
