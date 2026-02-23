@@ -85,3 +85,5 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 export default connectDB;
+
+// this connection is not ENTIRELY production grade ... but does the job
