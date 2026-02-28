@@ -124,6 +124,14 @@ UserSchema.set("toJSON", {
   },
 });
 
+// Indexes for Performance
+// Single field indexes
+UserSchema.index({ role: 1 }); // Filter users by role (admin: "show all instructors")
+UserSchema.index({ isActive: 1 }); // Find active/inactive users
+
+// Compound indexes for common queries
+UserSchema.index({ role: 1, isActive: 1 }); // Find active instructors/students
+
 const UserModel = mongoose.model("User", UserSchema);
 
 export default UserModel;
