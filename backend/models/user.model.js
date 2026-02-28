@@ -67,6 +67,25 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       select: false, // Sensitive - never return in queries
     },
+    refreshTokens: [
+      {
+        token: {
+          type: String,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        expiresAt: {
+          type: Date,
+          required: true,
+        },
+        // Optional: track device/location for security
+        userAgent: String,
+        ipAddress: String,
+      },
+    ],
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt
@@ -111,6 +130,53 @@ UserSchema.methods.createPasswordResetToken = function () {
   return resetToken;
 };
 
+// Instance method: Add refresh token to user
+// Stores hashed version in DB for security
+UserSchema.methods.addRefreshToken = function (token, expiresIn, userAgent, ipAddress) {
+  // Hash the token before storing (in case DB is compromised)
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+  this.refreshTokens.push({
+    token: hashedToken,
+    expiresAt: new Date(Date.now() + expiresIn),
+    userAgent,
+    ipAddress,
+  });
+};
+
+// Instance method: Remove specific refresh token (logout)
+// Returns true if token was found and removed
+UserSchema.methods.removeRefreshToken = function (token) {
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  const initialLength = this.refreshTokens.length;
+
+  this.refreshTokens = this.refreshTokens.filter((rt) => rt.token !== hashedToken);
+
+  return this.refreshTokens.length < initialLength; // Returns true if removed
+};
+
+// Instance method: Remove all refresh tokens (logout everywhere)
+UserSchema.methods.removeAllRefreshTokens = function () {
+  this.refreshTokens = [];
+};
+
+// Instance method: Clean up expired refresh tokens
+UserSchema.methods.cleanupExpiredTokens = function () {
+  const now = new Date();
+  this.refreshTokens = this.refreshTokens.filter((rt) => rt.expiresAt > now);
+};
+
+// Instance method: Check if refresh token is valid
+// Returns true if token exists and hasn't expired
+UserSchema.methods.hasValidRefreshToken = function (token) {
+  const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+  const now = new Date();
+
+  return this.refreshTokens.some(
+    (rt) => rt.token === hashedToken && rt.expiresAt > now
+  );
+};
+
 // Transform toJSON: Remove sensitive fields from JSON responses
 // This runs automatically when res.json(user) is called
 UserSchema.set("toJSON", {
@@ -119,6 +185,7 @@ UserSchema.set("toJSON", {
     delete ret.password;
     delete ret.passwordResetToken;
     delete ret.passwordResetExpires;
+    delete ret.refreshTokens; // Never expose refresh tokens in API
     delete ret.__v;
     return ret;
   },
