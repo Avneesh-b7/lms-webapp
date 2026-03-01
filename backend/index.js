@@ -1,4 +1,7 @@
 import dotenv from "dotenv";
+// Load environment variables BEFORE any other imports
+dotenv.config();
+
 import express from "express";
 import morgan from "morgan";
 import cors from "cors";
@@ -8,8 +11,7 @@ import mongoSanitize from "express-mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import logger from "./utils/logger.js";
 import connectDB from "./config/db.js";
-
-dotenv.config();
+import healthCheckRouter from "./routes/health.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,10 +65,8 @@ app.get("/", (req, res) => {
   res.json({ message: "Server is working!" });
 });
 
-// Health check route
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
-});
+// Routes
+app.use("/health", healthCheckRouter);
 
 // 404 handler - must be AFTER all routes
 app.use((req, res) => {

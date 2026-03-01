@@ -1,8 +1,16 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import crypto from "crypto";
 import path from "path";
+
+import dotenv from "dotenv";
+dotenv.config();
 
 // Initialize S3 Client
 const s3Client = new S3Client({
@@ -52,7 +60,8 @@ const getContentType = (filename) => {
     // Documents
     ".pdf": "application/pdf",
     ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".docx":
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".txt": "text/plain",
   };
 
@@ -180,7 +189,7 @@ export const getPresignedUrl = async (key, expiresIn = 3600) => {
 export const uploadMultipleToS3 = async (files, folder = "") => {
   try {
     const uploadPromises = files.map((file) =>
-      uploadToS3(file.buffer, file.originalname, folder)
+      uploadToS3(file.buffer, file.originalname, folder),
     );
 
     return await Promise.all(uploadPromises);
