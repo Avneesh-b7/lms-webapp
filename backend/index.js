@@ -12,6 +12,8 @@ import rateLimit from "express-rate-limit";
 import logger from "./utils/logger.js";
 import connectDB from "./config/db.js";
 import healthCheckRouter from "./routes/health.routes.js";
+import authRouter from "./routes/auth.routes.js";
+import userRouter from "./routes/user.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -67,6 +69,8 @@ app.get("/", (req, res) => {
 
 // Routes
 app.use("/health", healthCheckRouter);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/users", userRouter);
 
 // 404 handler - must be AFTER all routes
 app.use((req, res) => {

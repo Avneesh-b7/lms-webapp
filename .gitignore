@@ -31,3 +31,11 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+
+# explainer files
+API_DOCUMENTATION.md
+FRONTEND_SCREENS.md
+IMPLEMENTATION_ROADMAP.md
+PRODUCT_PLAN.md
+

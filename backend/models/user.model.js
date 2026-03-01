@@ -94,14 +94,13 @@ const UserSchema = new mongoose.Schema(
 
 // Pre-save hook: Hash password before saving
 // Only runs if password is new or has been modified
-UserSchema.pre("save", async function (next) {
+UserSchema.pre("save", async function () {
   // If password wasn't modified, skip hashing (e.g., updating email)
-  if (!this.isModified("password")) return next();
+  if (!this.isModified("password")) return;
 
   // Hash password with cost factor of 12
   // Higher = more secure but slower (10-12 is standard)
   this.password = await bcrypt.hash(this.password, 12);
-  next();
 });
 
 // Instance method: Compare password for login
@@ -132,32 +131,50 @@ UserSchema.methods.createPasswordResetToken = function () {
 
 // Instance method: Add refresh token to user
 // Stores hashed version in DB for security
-UserSchema.methods.addRefreshToken = function (token, expiresIn, userAgent, ipAddress) {
+UserSchema.methods.addRefreshToken = async function (token, expiresIn, userAgent, ipAddress) {
   // Hash the token before storing (in case DB is compromised)
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
+  // Parse expiresIn string (e.g., "7d", "15m") to milliseconds
+  const parseExpiry = (timeStr) => {
+    const units = { d: 86400000, h: 3600000, m: 60000, s: 1000 };
+    const match = timeStr.match(/^(\d+)([dhms])$/);
+    return match ? parseInt(match[1]) * units[match[2]] : 7 * 86400000; // Default 7 days
+  };
+
+  const expiryMs = typeof expiresIn === "string" ? parseExpiry(expiresIn) : expiresIn;
+
+  // SINGLE TOKEN ONLY: Clear all existing tokens (logout from all other devices)
+  this.refreshTokens = [];
+
+  // Add the new token
   this.refreshTokens.push({
     token: hashedToken,
-    expiresAt: new Date(Date.now() + expiresIn),
+    expiresAt: new Date(Date.now() + expiryMs),
     userAgent,
     ipAddress,
   });
+
+  // Save to database
+  return await this.save();
 };
 
 // Instance method: Remove specific refresh token (logout)
 // Returns true if token was found and removed
-UserSchema.methods.removeRefreshToken = function (token) {
+UserSchema.methods.removeRefreshToken = async function (token) {
   const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
   const initialLength = this.refreshTokens.length;
 
   this.refreshTokens = this.refreshTokens.filter((rt) => rt.token !== hashedToken);
 
+  await this.save();
   return this.refreshTokens.length < initialLength; // Returns true if removed
 };
 
 // Instance method: Remove all refresh tokens (logout everywhere)
-UserSchema.methods.removeAllRefreshTokens = function () {
+UserSchema.methods.removeAllRefreshTokens = async function () {
   this.refreshTokens = [];
+  return await this.save();
 };
 
 // Instance method: Clean up expired refresh tokens

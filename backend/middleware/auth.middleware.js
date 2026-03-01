@@ -17,6 +17,7 @@ export const authenticate = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
         success: false,
+        statusCode: 401,
         message: "Access token is required",
       });
     }
@@ -29,6 +30,7 @@ export const authenticate = async (req, res, next) => {
     if (!decoded) {
       return res.status(401).json({
         success: false,
+        statusCode: 401,
         message: "Invalid or expired access token",
       });
     }
@@ -41,6 +43,7 @@ export const authenticate = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
+        statusCode: 401,
         message: "User not found",
       });
     }
@@ -49,6 +52,7 @@ export const authenticate = async (req, res, next) => {
     if (user.isActive === false) {
       return res.status(403).json({
         success: false,
+        statusCode: 403,
         message: "Account is deactivated",
       });
     }
@@ -57,10 +61,15 @@ export const authenticate = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    logger.error("Authentication error:", error);
+    logger.error("Authentication error:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    });
     return res.status(401).json({
       success: false,
-      message: "Authentication failed",
+      statusCode: 401,
+      message: process.env.NODE_ENV === "development" ? error.message : "Authentication failed",
     });
   }
 };
@@ -105,6 +114,7 @@ export const requireRoles = (allowedRoles) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
+        statusCode: 401,
         message: "Authentication required",
       });
     }
@@ -116,6 +126,7 @@ export const requireRoles = (allowedRoles) => {
       );
       return res.status(403).json({
         success: false,
+        statusCode: 403,
         message: `Access denied. Required roles: ${allowedRoles.join(", ")}`,
       });
     }
